@@ -90,7 +90,7 @@ Resources:
                 Repo: cicd
                 Branch: master
                 OAuthToken: "6f9206b80105619010ac61aabc24a040324ae4f4"
-                PollForSourceChanges: false
+                PollForSourceChanges: true
               Name: GitHub_Source
               OutputArtifacts:
                 - Name: website_source_code
@@ -156,17 +156,3 @@ Resources:
               AWS:
                 - "*"
         Version: "2012-10-17"
-
-  GithubWebhook:
-    Type: "AWS::CodePipeline::Webhook"
-    Properties:
-      Authentication: GITHUB_HMAC
-      AuthenticationConfiguration:
-        SecretToken: "6f9206b80105619010ac61aabc24a040324ae4f4"
-      RegisterWithThirdParty: "true"
-      Filters:
-        - JsonPath: "$.ref"
-          MatchEquals: refs/heads/master
-      TargetPipeline: !Ref Pipeline
-      TargetAction: GitHub_Source
-      TargetPipelineVersion: !GetAtt Pipeline.Version
