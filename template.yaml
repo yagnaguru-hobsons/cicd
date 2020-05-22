@@ -89,7 +89,7 @@ Resources:
                 Owner: yagnaguru-hobsons
                 Repo: cicd
                 Branch: master
-                OAuthToken: "6f9206b80105619010ac61aabc24a040324ae4f4"
+                OAuthToken: "8a219f466ca53a8848af628fdb311678ec42a0e9"
                 PollForSourceChanges: true
               Name: GitHub_Source
               OutputArtifacts:
