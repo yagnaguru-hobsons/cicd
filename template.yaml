@@ -11,22 +11,127 @@ Globals:
     Timeout: 3
 
 Resources:
-  HelloWorldFunction:
-    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+  # HelloWorldFunction:
+  #   Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+  #   Properties:
+  #     CodeUri: hello-world/
+  #     Handler: app.lambdaHandler
+  #     Runtime: nodejs12.x
+  #     Events:
+  #       HelloWorld:
+  #         Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+  #         Properties:
+  #           Path: /hello
+  #           Method: get
+
+  Bucket:
+    Type: AWS::S3::Bucket
+
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
     Properties:
-      CodeUri: hello-world/
-      Handler: app.lambdaHandler
-      Runtime: nodejs12.x
-      Events:
-        HelloWorld:
-          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
-          Properties:
-            Path: /hello
-            Method: get
+      Bucket: !Ref Bucket
+      PolicyDocument:
+        Statement:
+          - Action: "*"
+            Effect: Allow
+            Resource: !Join ["", ["arn:aws:s3:::", !Ref Bucket, "/*"]]
+            Principal: "*"
 
   #################################
   # BUILD
   #################################
+
+  BuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+        Version: "2012-10-17"
+
+  BuildRoleDefaultPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Effect: Allow
+            Resource:
+              - Fn::Join:
+                  - ""
+                  - - "arn:"
+                    - Ref: AWS::Partition
+                    - :logs:*:*:log-group:/aws/codebuild/
+                    - Ref: Build
+              - Fn::Join:
+                  - ""
+                  - - "arn:"
+                    - Ref: AWS::Partition
+                    - :logs:*:*:log-group:/aws/codebuild/
+                    - Ref: Build
+                    - :*
+
+          - Action:
+              - s3:GetObject*
+              - s3:GetBucket*
+              - s3:List*
+              - s3:DeleteObject*
+              - s3:PutObject*
+              - s3:Abort*
+            Effect: Allow
+            Resource:
+              - Fn::GetAtt:
+                  - Bucket
+                  - Arn
+              - Fn::Join:
+                  - ""
+                  - - Fn::GetAtt:
+                        - Bucket
+                        - Arn
+                    - /*
+        Version: "2012-10-17"
+      PolicyName: BuildRoleDefaultPolicy
+      Roles:
+        - Ref: BuildRole
+
+  BuildCodePipelineActionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              AWS:
+                - "*"
+        Version: "2012-10-17"
+
+  BuildCodePipelineActionRoleDefaultPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - codebuild:BatchGetBuilds
+              - codebuild:StartBuild
+              - codebuild:StopBuild
+            Effect: Allow
+            Resource:
+              Fn::GetAtt:
+                - Build
+                - Arn
+        Version: "2012-10-17"
+      PolicyName: BuildCodePipelineActionRoleDefaultPolicy
+      Roles:
+        - Ref: BuildCodePipelineActionRole
+
   Build:
     Type: AWS::CodeBuild::Project
     Properties:
@@ -45,7 +150,8 @@ Resources:
         Type: CODEPIPELINE
         BuildSpec: "buildspec.yml"
 
-  BuildRole:
+
+  DeployWebsiteCodePipelineActionRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -53,12 +159,84 @@ Resources:
           - Action: sts:AssumeRole
             Effect: Allow
             Principal:
-              Service: codebuild.amazonaws.com
+              AWS:
+                - "*"
         Version: "2012-10-17"
 
-  #################################
-  # CODEPIPELINE
-  #################################
+  DeployWebsiteCodePipelineActionRoleDefaultPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action: iam:PassRole
+            Effect: Allow
+            Resource:
+              Fn::GetAtt:
+                - DeployWebsiteRole
+                - Arn
+          - Action:
+              - s3:GetObject*
+              - s3:GetBucket*
+              - s3:List*
+            Effect: Allow
+            Resource:
+              - Fn::GetAtt:
+                  - Bucket
+                  - Arn
+              - Fn::Join:
+                  - ""
+                  - - Fn::GetAtt:
+                        - Bucket
+                        - Arn
+                    - /*
+          - Action:
+              - cloudformation:*
+            Effect: Allow
+            Resource: "*"
+        Version: "2012-10-17"
+      PolicyName: DeployWebsiteCodePipelineActionRoleDefaultPolicy
+      Roles:
+        - Ref: DeployWebsiteCodePipelineActionRole
+
+  DeployWebsiteRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+        Version: "2012-10-17"
+
+
+  DeployWebsiteRoleDefaultPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - s3:GetObject*
+              - s3:GetBucket*
+              - s3:List*
+            Effect: Allow
+            Resource:
+              - Fn::GetAtt:
+                  - Bucket
+                  - Arn
+              - Fn::Join:
+                  - ""
+                  - - Fn::GetAtt:
+                        - Bucket
+                        - Arn
+                    - /*
+          - Action: "*"
+            Effect: Allow
+            Resource: "*"
+        Version: "2012-10-17"
+      PolicyName: DeployWebsiteRoleDefaultPolicy
+      Roles:
+        - Ref: DeployWebsiteRole
 
   PipelineRole:
     Type: AWS::IAM::Role
@@ -70,6 +248,46 @@ Resources:
             Principal:
               Service: codepipeline.amazonaws.com
         Version: "2012-10-17"
+
+  PipelineRoleDefaultPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - s3:GetObject*
+              - s3:GetBucket*
+              - s3:List*
+              - s3:DeleteObject*
+              - s3:PutObject*
+              - s3:Abort*
+            Effect: Allow
+            Resource:
+              - Fn::GetAtt:
+                  - Bucket
+                  - Arn
+              - Fn::Join:
+                  - ""
+                  - - Fn::GetAtt:
+                        - Bucket
+                        - Arn
+                    - /*
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Resource:
+              Fn::GetAtt:
+                - BuildCodePipelineActionRole
+                - Arn
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Resource:
+              Fn::GetAtt:
+                - DeployWebsiteCodePipelineActionRole
+                - Arn
+        Version: "2012-10-17"
+      PolicyName: PipelineRoleDefaultPolicy
+      Roles:
+        - Ref: PipelineRole
 
   Pipeline:
     Type: AWS::CodePipeline::Pipeline
@@ -89,8 +307,8 @@ Resources:
                 Owner: yagnaguru-hobsons
                 Repo: cicd
                 Branch: master
-                OAuthToken: "8a219f466ca53a8848af628fdb311678ec42a0e9"
-                PollForSourceChanges: true
+                OAuthToken: b287006e5d2fa22d13d6af7d5f7645744ab438f5
+                PollForSourceChanges: false
               Name: GitHub_Source
               OutputArtifacts:
                 - Name: website_source_code
@@ -123,36 +341,40 @@ Resources:
                 Category: Approval
                 Owner: AWS
                 Provider: Manual
-                Version: "1"
+                Version: '1'
               RunOrder: 1
         - Name: Deploy
           Actions:
-            - Name: S3Deploy
-              ActionTypeId:
-                Category: Deploy
-                Owner: AWS
-                Provider: S3
-                Version: "1"
-              InputArtifacts:
-                - Name: BuildOutput
-              Configuration:
-                BucketName: greetme-cicd
-                Extract: "true"
-              RunOrder: 1
+          - Name: S3Deploy
+            ActionTypeId:
+              Category: Deploy
+              Owner: AWS
+              Provider: S3
+              Version: '1'
+            InputArtifacts:
+              - Name: BuildOutput
+            Configuration:
+              BucketName: !Ref Bucket
+              Extract: 'true'
+            RunOrder: 1
       ArtifactStore:
-        Location: greetme-cicd
+        Location:
+          Ref: Bucket
         Type: S3
     DependsOn:
+      - PipelineRoleDefaultPolicy
       - PipelineRole
 
-  BuildCodePipelineActionRole:
-    Type: AWS::IAM::Role
+  GithubWebhook:
+    Type: "AWS::CodePipeline::Webhook"
     Properties:
-      AssumeRolePolicyDocument:
-        Statement:
-          - Action: sts:AssumeRole
-            Effect: Allow
-            Principal:
-              AWS:
-                - "*"
-        Version: "2012-10-17"
+      Authentication: GITHUB_HMAC
+      AuthenticationConfiguration:
+        SecretToken: b287006e5d2fa22d13d6af7d5f7645744ab438f5
+      RegisterWithThirdParty: "true"
+      Filters:
+        - JsonPath: "$.ref"
+          MatchEquals: refs/heads/master
+      TargetPipeline: !Ref Pipeline
+      TargetAction: GitHub_Source
+      TargetPipelineVersion: !GetAtt Pipeline.Version

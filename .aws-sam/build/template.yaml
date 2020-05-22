@@ -9,18 +9,109 @@ Globals:
   Function:
     Timeout: 3
 Resources:
-  HelloWorldFunction:
-    Type: AWS::Serverless::Function
+  Bucket:
+    Type: AWS::S3::Bucket
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
     Properties:
-      CodeUri: HelloWorldFunction
-      Handler: app.lambdaHandler
-      Runtime: nodejs12.x
-      Events:
-        HelloWorld:
-          Type: Api
-          Properties:
-            Path: /hello
-            Method: get
+      Bucket:
+        Ref: Bucket
+      PolicyDocument:
+        Statement:
+        - Action: '*'
+          Effect: Allow
+          Resource:
+            Fn::Join:
+            - ''
+            - - 'arn:aws:s3:::'
+              - Ref: Bucket
+              - /*
+          Principal: '*'
+  BuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service: codebuild.amazonaws.com
+        Version: '2012-10-17'
+  BuildRoleDefaultPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+        - Action:
+          - logs:CreateLogGroup
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Effect: Allow
+          Resource:
+          - Fn::Join:
+            - ''
+            - - 'arn:'
+              - Ref: AWS::Partition
+              - :logs:*:*:log-group:/aws/codebuild/
+              - Ref: Build
+          - Fn::Join:
+            - ''
+            - - 'arn:'
+              - Ref: AWS::Partition
+              - :logs:*:*:log-group:/aws/codebuild/
+              - Ref: Build
+              - :*
+        - Action:
+          - s3:GetObject*
+          - s3:GetBucket*
+          - s3:List*
+          - s3:DeleteObject*
+          - s3:PutObject*
+          - s3:Abort*
+          Effect: Allow
+          Resource:
+          - Fn::GetAtt:
+            - Bucket
+            - Arn
+          - Fn::Join:
+            - ''
+            - - Fn::GetAtt:
+                - Bucket
+                - Arn
+              - /*
+        Version: '2012-10-17'
+      PolicyName: BuildRoleDefaultPolicy
+      Roles:
+      - Ref: BuildRole
+  BuildCodePipelineActionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            AWS:
+            - '*'
+        Version: '2012-10-17'
+  BuildCodePipelineActionRoleDefaultPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+        - Action:
+          - codebuild:BatchGetBuilds
+          - codebuild:StartBuild
+          - codebuild:StopBuild
+          Effect: Allow
+          Resource:
+            Fn::GetAtt:
+            - Build
+            - Arn
+        Version: '2012-10-17'
+      PolicyName: BuildCodePipelineActionRoleDefaultPolicy
+      Roles:
+      - Ref: BuildCodePipelineActionRole
   Build:
     Type: AWS::CodeBuild::Project
     Properties:
@@ -38,7 +129,7 @@ Resources:
       Source:
         Type: CODEPIPELINE
         BuildSpec: buildspec.yml
-  BuildRole:
+  DeployWebsiteCodePipelineActionRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -46,8 +137,80 @@ Resources:
         - Action: sts:AssumeRole
           Effect: Allow
           Principal:
-            Service: codebuild.amazonaws.com
+            AWS:
+            - '*'
         Version: '2012-10-17'
+  DeployWebsiteCodePipelineActionRoleDefaultPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+        - Action: iam:PassRole
+          Effect: Allow
+          Resource:
+            Fn::GetAtt:
+            - DeployWebsiteRole
+            - Arn
+        - Action:
+          - s3:GetObject*
+          - s3:GetBucket*
+          - s3:List*
+          Effect: Allow
+          Resource:
+          - Fn::GetAtt:
+            - Bucket
+            - Arn
+          - Fn::Join:
+            - ''
+            - - Fn::GetAtt:
+                - Bucket
+                - Arn
+              - /*
+        - Action:
+          - cloudformation:*
+          Effect: Allow
+          Resource: '*'
+        Version: '2012-10-17'
+      PolicyName: DeployWebsiteCodePipelineActionRoleDefaultPolicy
+      Roles:
+      - Ref: DeployWebsiteCodePipelineActionRole
+  DeployWebsiteRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service: cloudformation.amazonaws.com
+        Version: '2012-10-17'
+  DeployWebsiteRoleDefaultPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+        - Action:
+          - s3:GetObject*
+          - s3:GetBucket*
+          - s3:List*
+          Effect: Allow
+          Resource:
+          - Fn::GetAtt:
+            - Bucket
+            - Arn
+          - Fn::Join:
+            - ''
+            - - Fn::GetAtt:
+                - Bucket
+                - Arn
+              - /*
+        - Action: '*'
+          Effect: Allow
+          Resource: '*'
+        Version: '2012-10-17'
+      PolicyName: DeployWebsiteRoleDefaultPolicy
+      Roles:
+      - Ref: DeployWebsiteRole
   PipelineRole:
     Type: AWS::IAM::Role
     Properties:
@@ -58,6 +221,45 @@ Resources:
           Principal:
             Service: codepipeline.amazonaws.com
         Version: '2012-10-17'
+  PipelineRoleDefaultPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+        - Action:
+          - s3:GetObject*
+          - s3:GetBucket*
+          - s3:List*
+          - s3:DeleteObject*
+          - s3:PutObject*
+          - s3:Abort*
+          Effect: Allow
+          Resource:
+          - Fn::GetAtt:
+            - Bucket
+            - Arn
+          - Fn::Join:
+            - ''
+            - - Fn::GetAtt:
+                - Bucket
+                - Arn
+              - /*
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Resource:
+            Fn::GetAtt:
+            - BuildCodePipelineActionRole
+            - Arn
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Resource:
+            Fn::GetAtt:
+            - DeployWebsiteCodePipelineActionRole
+            - Arn
+        Version: '2012-10-17'
+      PolicyName: PipelineRoleDefaultPolicy
+      Roles:
+      - Ref: PipelineRole
   Pipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
@@ -76,7 +278,7 @@ Resources:
             Owner: yagnaguru-hobsons
             Repo: cicd
             Branch: master
-            OAuthToken: b7b04b4acaa78fffed134ac6d4ad77b17f4d5359
+            OAuthToken: b287006e5d2fa22d13d6af7d5f7645744ab438f5
             PollForSourceChanges: false
           Name: GitHub_Source
           OutputArtifacts:
@@ -123,31 +325,23 @@ Resources:
           InputArtifacts:
           - Name: BuildOutput
           Configuration:
-            BucketName: greetme-cicd
+            BucketName:
+              Ref: Bucket
             Extract: 'true'
           RunOrder: 1
       ArtifactStore:
-        Location: greetme-cicd
+        Location:
+          Ref: Bucket
         Type: S3
     DependsOn:
+    - PipelineRoleDefaultPolicy
     - PipelineRole
-  BuildCodePipelineActionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Statement:
-        - Action: sts:AssumeRole
-          Effect: Allow
-          Principal:
-            AWS:
-            - '*'
-        Version: '2012-10-17'
   GithubWebhook:
     Type: AWS::CodePipeline::Webhook
     Properties:
       Authentication: GITHUB_HMAC
       AuthenticationConfiguration:
-        SecretToken: b7b04b4acaa78fffed134ac6d4ad77b17f4d5359
+        SecretToken: b287006e5d2fa22d13d6af7d5f7645744ab438f5
       RegisterWithThirdParty: 'true'
       Filters:
       - JsonPath: $.ref
