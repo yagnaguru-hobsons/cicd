@@ -13,10 +13,11 @@ phases:
     build:
         commands:
             - echo deployment started..
-            - sam build
-            - sam package --template-file template.yaml --s3-bucket greetme-cicd --output-template-file packaged.yaml
-            - sam deploy --template-file packaged.yaml --stack-name cicd --capabilities CAPABILITY_IAM
+            - aws cloudformation package --template-file sam/app/template.yaml --s3-bucket greetme-cicd --output-template-file packaged-template.yaml
 
     post_build:
         commands:
             - echo deployment complete..
+artifacts:
+  files:
+    - packaged-template.yaml

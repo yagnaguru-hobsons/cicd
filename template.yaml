@@ -1,31 +1,47 @@
-AWSTemplateFormatVersion: "2010-09-09"
-Transform: AWS::Serverless-2016-10-31
-Description: >
-  cicd
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Camino website deployment
 
-  Sample SAM Template for cicd
+###############################################################################
+Parameters:
+###############################################################################
 
-# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
-Globals:
-  Function:
-    Timeout: 3
+  DomainName:
+    Type: String
+    Description: Camino domain name
+    Default: clouddev.withcamino.com
 
+  EnvName:
+    Type: String
+    Description: Environment name
+    Default: dev
+
+  EnvType:
+    Type: String
+    Description: Environment type
+    Default: "non-production"
+    AllowedValues:
+        - 'non-production'
+        - 'production'
+
+###############################################################################
+Conditions: 
+###############################################################################
+  NonProdEnv: !Equals [ !Ref EnvType, non-production ]
+
+
+
+
+###############################################################################
 Resources:
-  # HelloWorldFunction:
-  #   Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
-  #   Properties:
-  #     CodeUri: hello-world/
-  #     Handler: app.lambdaHandler
-  #     Runtime: nodejs12.x
-  #     Events:
-  #       HelloWorld:
-  #         Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
-  #         Properties:
-  #           Path: /hello
-  #           Method: get
+###############################################################################
 
+
+#################################
+# S3 BUCKET
+#################################
   Bucket:
     Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
 
   BucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -33,15 +49,18 @@ Resources:
       Bucket: !Ref Bucket
       PolicyDocument:
         Statement:
-          - Action: "*"
+          - Action:
+              - s3:GetObject
             Effect: Allow
-            Resource: !Join ["", ["arn:aws:s3:::", !Ref Bucket, "/*"]]
+            Resource: !Join ['', ['arn:aws:s3:::', !Ref Bucket, '/*']]
             Principal: "*"
 
-  #################################
-  # BUILD
-  #################################
+############################################### CODE PIPELINE #######################################
 
+
+#################################
+# BUILD
+#################################
   BuildRole:
     Type: AWS::IAM::Role
     Properties:
@@ -52,6 +71,8 @@ Resources:
             Principal:
               Service: codebuild.amazonaws.com
         Version: "2012-10-17"
+
+
 
   BuildRoleDefaultPolicy:
     Type: AWS::IAM::Policy
@@ -101,6 +122,8 @@ Resources:
       Roles:
         - Ref: BuildRole
 
+
+
   BuildCodePipelineActionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -112,6 +135,7 @@ Resources:
               AWS:
                 - "*"
         Version: "2012-10-17"
+
 
   BuildCodePipelineActionRoleDefaultPolicy:
     Type: AWS::IAM::Policy
@@ -132,6 +156,7 @@ Resources:
       Roles:
         - Ref: BuildCodePipelineActionRole
 
+
   Build:
     Type: AWS::CodeBuild::Project
     Properties:
@@ -148,7 +173,12 @@ Resources:
           - Arn
       Source:
         Type: CODEPIPELINE
-        BuildSpec: "buildspec.yml"
+        BuildSpec: 'buildspec.yml'
+
+
+#################################
+# DEPLOY
+#################################
 
 
   DeployWebsiteCodePipelineActionRole:
@@ -162,6 +192,7 @@ Resources:
               AWS:
                 - "*"
         Version: "2012-10-17"
+
 
   DeployWebsiteCodePipelineActionRoleDefaultPolicy:
     Type: AWS::IAM::Policy
@@ -190,13 +221,26 @@ Resources:
                         - Arn
                     - /*
           - Action:
-              - cloudformation:*
+              - cloudformation:CreateStack
+              - cloudformation:DescribeStack*
+              - cloudformation:GetStackPolicy
+              - cloudformation:GetTemplate*
+              - cloudformation:SetStackPolicy
+              - cloudformation:UpdateStack
+              - cloudformation:ValidateTemplate
             Effect: Allow
-            Resource: "*"
+            Resource:
+              Fn::Join:
+                - ""
+                - - "arn:"
+                  - Ref: AWS::Partition
+                  - :cloudformation:*:*:stack/ss-camino-website/*
         Version: "2012-10-17"
       PolicyName: DeployWebsiteCodePipelineActionRoleDefaultPolicy
       Roles:
         - Ref: DeployWebsiteCodePipelineActionRole
+
+
 
   DeployWebsiteRole:
     Type: AWS::IAM::Role
@@ -238,6 +282,12 @@ Resources:
       Roles:
         - Ref: DeployWebsiteRole
 
+
+
+#################################
+# CODEPIPELINE
+#################################
+
   PipelineRole:
     Type: AWS::IAM::Role
     Properties:
@@ -248,6 +298,9 @@ Resources:
             Principal:
               Service: codepipeline.amazonaws.com
         Version: "2012-10-17"
+
+
+
 
   PipelineRoleDefaultPolicy:
     Type: AWS::IAM::Policy
@@ -289,6 +342,7 @@ Resources:
       Roles:
         - Ref: PipelineRole
 
+
   Pipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
@@ -307,7 +361,7 @@ Resources:
                 Owner: yagnaguru-hobsons
                 Repo: cicd
                 Branch: master
-                OAuthToken: b287006e5d2fa22d13d6af7d5f7645744ab438f5
+                OAuthToken: 732a9410dfa760acd71bc7e9514f884359cfaaf8
                 PollForSourceChanges: false
               Name: GitHub_Source
               OutputArtifacts:
@@ -366,15 +420,31 @@ Resources:
       - PipelineRole
 
   GithubWebhook:
-    Type: "AWS::CodePipeline::Webhook"
+    Type: 'AWS::CodePipeline::Webhook'
     Properties:
       Authentication: GITHUB_HMAC
       AuthenticationConfiguration:
-        SecretToken: b287006e5d2fa22d13d6af7d5f7645744ab438f5
-      RegisterWithThirdParty: "true"
+        SecretToken: 732a9410dfa760acd71bc7e9514f884359cfaaf8
+      RegisterWithThirdParty: 'true'
       Filters:
-        - JsonPath: "$.ref"
-          MatchEquals: refs/heads/master
+      - JsonPath: "$.ref"
+        MatchEquals: refs/heads/master
       TargetPipeline: !Ref Pipeline
       TargetAction: GitHub_Source
       TargetPipelineVersion: !GetAtt Pipeline.Version
+
+
+#################################
+# OUTPUTS
+#################################
+
+
+
+Outputs:
+  WebsiteURL:
+    Value: !Join ['', ['http://', !Ref 'DomainName']]
+    Description: The URL of the newly created website
+  BucketName:
+    Value: !Ref 'Bucket'
+    Description: Name of S3 bucket to hold website content
+
