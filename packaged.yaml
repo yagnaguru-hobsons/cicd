@@ -302,9 +302,9 @@ Resources:
             Version: '1'
           Configuration:
             Owner: yagnaguru-hobsons
-            Repo: cicd
+            Repo: postgres-lambda-vpc
             Branch: master
-            OAuthToken: 47c61dc63ac76dc946bb3fc2673ff1c8cdefd350
+            OAuthToken: c283af8b2565fef284f1475741595578e92b4a64
             PollForSourceChanges: false
           Name: GitHub_Source
           OutputArtifacts:
@@ -367,7 +367,7 @@ Resources:
     Properties:
       Authentication: GITHUB_HMAC
       AuthenticationConfiguration:
-        SecretToken: 47c61dc63ac76dc946bb3fc2673ff1c8cdefd350
+        SecretToken: c283af8b2565fef284f1475741595578e92b4a64
       RegisterWithThirdParty: 'true'
       Filters:
       - JsonPath: $.ref
