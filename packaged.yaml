@@ -304,7 +304,7 @@ Resources:
             Owner: yagnaguru-hobsons
             Repo: cicd
             Branch: master
-            OAuthToken: 732a9410dfa760acd71bc7e9514f884359cfaaf8
+            OAuthToken: 47c61dc63ac76dc946bb3fc2673ff1c8cdefd350
             PollForSourceChanges: false
           Name: GitHub_Source
           OutputArtifacts:
@@ -367,7 +367,7 @@ Resources:
     Properties:
       Authentication: GITHUB_HMAC
       AuthenticationConfiguration:
-        SecretToken: 732a9410dfa760acd71bc7e9514f884359cfaaf8
+        SecretToken: 47c61dc63ac76dc946bb3fc2673ff1c8cdefd350
       RegisterWithThirdParty: 'true'
       Filters:
       - JsonPath: $.ref
