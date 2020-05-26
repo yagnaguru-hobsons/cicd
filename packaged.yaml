@@ -1,26 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Camino website deployment
-Parameters:
-  DomainName:
-    Type: String
-    Description: Camino domain name
-    Default: clouddev.withcamino.com
-  EnvName:
-    Type: String
-    Description: Environment name
-    Default: dev
-  EnvType:
-    Type: String
-    Description: Environment type
-    Default: non-production
-    AllowedValues:
-    - non-production
-    - production
-Conditions:
-  NonProdEnv:
-    Fn::Equals:
-    - Ref: EnvType
-    - non-production
 Resources:
   Bucket:
     Type: AWS::S3::Bucket
@@ -379,15 +358,3 @@ Resources:
         Fn::GetAtt:
         - Pipeline
         - Version
-Outputs:
-  WebsiteURL:
-    Value:
-      Fn::Join:
-      - ''
-      - - http://
-        - Ref: DomainName
-    Description: The URL of the newly created website
-  BucketName:
-    Value:
-      Ref: Bucket
-    Description: Name of S3 bucket to hold website content
