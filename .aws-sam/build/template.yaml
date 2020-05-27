@@ -1,5 +1,20 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Camino website deployment
+Parameters:
+  Region:
+    Description: Region
+    Type: String
+    Default: us-east-1
+  DeployRoleName:
+    Description: The IAM role name to deploy the CloudFormation stack. This role needs
+      to be configured to allow cloudformation.amazonaws.com to assume it. Deploy
+      stage will not be added if not specified.
+    Type: String
+    Default: sf-developer
+  DeployStackName:
+    Description: The stack name for the deploy stage
+    Type: String
+    Default: ps-sqs-cicd
 Resources:
   Bucket:
     Type: AWS::S3::Bucket
@@ -122,7 +137,7 @@ Resources:
         - Arn
       Source:
         Type: CODEPIPELINE
-        BuildSpec: buildspec.yml
+        BuildSpec: /buildspec.yml
   DeployWebsiteCodePipelineActionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -174,7 +189,7 @@ Resources:
             - ''
             - - 'arn:'
               - Ref: AWS::Partition
-              - :cloudformation:*:*:stack/ss-camino-website/*
+              - :cloudformation:*:*:stack/postgres-sqs/*
         Version: '2012-10-17'
       PolicyName: DeployWebsiteCodePipelineActionRoleDefaultPolicy
       Roles:
@@ -225,6 +240,10 @@ Resources:
           Effect: Allow
           Principal:
             Service: codepipeline.amazonaws.com
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service: cloudformation.amazonaws.com
         Version: '2012-10-17'
   PipelineRoleDefaultPolicy:
     Type: AWS::IAM::Policy
@@ -283,7 +302,7 @@ Resources:
             Owner: yagnaguru-hobsons
             Repo: postgres-lambda-vpc
             Branch: master
-            OAuthToken: c283af8b2565fef284f1475741595578e92b4a64
+            OAuthToken: 9cd15f4e3479b8cede91d909b0b649924af37728
             PollForSourceChanges: false
           Name: GitHub_Source
           OutputArtifacts:
@@ -321,19 +340,44 @@ Resources:
           RunOrder: 1
       - Name: Deploy
         Actions:
-        - Name: S3Deploy
+        - Name: CreateChangeSet
           ActionTypeId:
             Category: Deploy
             Owner: AWS
-            Provider: S3
+            Provider: CloudFormation
             Version: '1'
           InputArtifacts:
           - Name: BuildOutput
           Configuration:
-            BucketName:
-              Ref: Bucket
-            Extract: 'true'
+            ActionMode: CHANGE_SET_REPLACE
+            Capabilities: CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND
+            RoleArn:
+              Fn::GetAtt:
+              - PipelineRole
+              - Arn
+            StackName:
+              Ref: DeployStackName
+            TemplatePath: BuildOutput::packaged-template.yaml
+            ChangeSetName:
+              Fn::Sub: a-${DeployStackName}-Deploy
           RunOrder: 1
+        - Name: ExecuteChangeSet
+          ActionTypeId:
+            Category: Deploy
+            Owner: AWS
+            Provider: CloudFormation
+            Version: '1'
+          Configuration:
+            ActionMode: CHANGE_SET_EXECUTE
+            StackName:
+              Ref: DeployStackName
+            RoleArn:
+              Fn::GetAtt:
+              - PipelineRole
+              - Arn
+            ChangeSetName:
+              Fn::Sub: a-${DeployStackName}-Deploy
+          RunOrder: 2
       ArtifactStore:
         Location:
           Ref: Bucket
@@ -346,7 +390,7 @@ Resources:
     Properties:
       Authentication: GITHUB_HMAC
       AuthenticationConfiguration:
-        SecretToken: c283af8b2565fef284f1475741595578e92b4a64
+        SecretToken: 9cd15f4e3479b8cede91d909b0b649924af37728
       RegisterWithThirdParty: 'true'
       Filters:
       - JsonPath: $.ref
