@@ -14,7 +14,7 @@ Parameters:
   DeployStackName:
     Description: The stack name for the deploy stage
     Type: String
-    Default: ps-sqs-cicd
+    Default: hw-cicd
 Resources:
   Bucket:
     Type: AWS::S3::Bucket
@@ -137,7 +137,7 @@ Resources:
         - Arn
       Source:
         Type: CODEPIPELINE
-        BuildSpec: /buildspec.yml
+        BuildSpec: buildspec.yml
   DeployWebsiteCodePipelineActionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -300,7 +300,7 @@ Resources:
             Version: '1'
           Configuration:
             Owner: yagnaguru-hobsons
-            Repo: postgres-lambda-vpc
+            Repo: cicd
             Branch: master
             OAuthToken: 9cd15f4e3479b8cede91d909b0b649924af37728
             PollForSourceChanges: false

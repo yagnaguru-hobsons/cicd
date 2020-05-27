@@ -15,7 +15,7 @@ Parameters:
   DeployStackName:
     Description: The stack name for the deploy stage
     Type: String
-    Default: ps-sqs-cicd
+    Default: hw-cicd
 
 ###############################################################################
 Resources:
@@ -151,7 +151,7 @@ Resources:
           - Arn
       Source:
         Type: CODEPIPELINE
-        BuildSpec: "/buildspec.yml"
+        BuildSpec: "buildspec.yml"
 
   #################################
   # DEPLOY
@@ -329,9 +329,9 @@ Resources:
                 Version: "1"
               Configuration:
                 Owner: yagnaguru-hobsons
-                Repo: postgres-lambda-vpc
+                Repo: cicd
                 Branch: master
-                OAuthToken: 9cd15f4e3479b8cede91d909b0b649924af37728
+                OAuthToken: ''
                 PollForSourceChanges: false
               Name: GitHub_Source
               OutputArtifacts:
@@ -417,7 +417,7 @@ Resources:
     Properties:
       Authentication: GITHUB_HMAC
       AuthenticationConfiguration:
-        SecretToken: 9cd15f4e3479b8cede91d909b0b649924af37728
+        SecretToken: ''
       RegisterWithThirdParty: "true"
       Filters:
         - JsonPath: "$.ref"
