@@ -209,7 +209,7 @@ Resources:
                 - ""
                 - - "arn:"
                   - Ref: AWS::Partition
-                  - :cloudformation:*:*:stack/postgres-sqs/*
+                  - :cloudformation:*:*:stack/${DeployStackName}/*
         Version: "2012-10-17"
       PolicyName: DeployWebsiteCodePipelineActionRoleDefaultPolicy
       Roles:
@@ -279,6 +279,13 @@ Resources:
       PolicyDocument:
         Statement:
           - Action:
+              - cloudformation:*
+            Effect: Allow
+            Resource: "*"
+          - Action: iam:PassRole
+            Effect: Allow
+            Resource: "*"
+          - Action:
               - s3:GetObject*
               - s3:GetBucket*
               - s3:List*
@@ -329,7 +336,7 @@ Resources:
                 Version: "1"
               Configuration:
                 Owner: yagnaguru-hobsons
-                Repo: cicd
+                Repo: postgres-lambda-vpc
                 Branch: master
                 OAuthToken: ''
                 PollForSourceChanges: false
@@ -395,7 +402,7 @@ Resources:
                 Owner: AWS
                 Provider: CloudFormation
                 Version: "1"
-              Configuration:
+              Configuration:  
                 ActionMode: CHANGE_SET_EXECUTE
                 StackName: !Ref DeployStackName
                 RoleArn:
